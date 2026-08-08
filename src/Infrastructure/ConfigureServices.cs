@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using MongoDB.Driver;
 
 namespace Infrastructure;
 
@@ -27,6 +28,19 @@ public static class ConfigureServices
         services.AddScoped<IContext, Context>();
         services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = true)
             .AddEntityFrameworkStores<Context>();
+
+        // MongoDB Configuration
+        services.AddSingleton<IMongoClient>(_ =>
+            new MongoClient(configuration.GetConnectionString("MongoConnection")));
+
+        services.AddScoped<IMongoDatabase>(serviceProvider =>
+        {
+            var client = serviceProvider.GetRequiredService<IMongoClient>();
+            var databaseName = configuration["MongoDatabase"] ?? "DotNetStarter";
+            return client.GetDatabase(databaseName);
+        });
+
+        services.AddScoped(typeof(IDocumentStore<>), typeof(DocumentStore<>));
         
         //Email Configuration
         var senderEmail = configuration.GetSection("Email")["Address"]!;
@@ -54,7 +68,7 @@ public static class ConfigureServices
         using (var scope = app.Services.CreateScope())
         {
             var dbContext = scope.ServiceProvider
-                .GetRequiredService<Context>(); // Replace YourDbContext with your actual context class
+                .GetRequiredService<Context>();
         
             // Apply any pending migrations
             dbContext.Database.Migrate();
